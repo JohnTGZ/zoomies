@@ -15,20 +15,25 @@ int main(int argc, char *argv[])
   int Init;
 
 /*  I2C address of motor driver */
-  const int I2C_ADDR = 0x34;
+  const int I2C_ADDR = 0x24;
 
 /*  Registers */
-  const int ADC_BAT_REG = 0; // Voltage address
-  const int MOTOR_TYPE_REG = 0x20; // Sets motor type
-  const int MOTOR_ENCODER_POLARITY_REG = 0x21; // sets encode direction polarity
-  const int MOTOR_FIXED_PWM_REG = 0x31;		// Fixed PWM control (open loop control)
-  const int MOTOR_FIXED_SPEED_REG = 0x51;	// Fixed speed control, it is closed loop control
-  const int MOTOR_ENCODER_TOTAL_REG = 0x60;	// Total pulse value of 4 encode motors
-  
-  const int MOTOR_TYPE_WITHOUT_ENCODER = 0; 	// Magnetic ring generates 44 pulses per revolution, combined with a gear reduction ratio of 90
-  const int MOTOR_TYPE_TT = 1;			// TT encoder motor
-  const int MOTOR_TYPE_N20 = 2;			// N20 encoder motor
-  const int MOTOR_TYPE_JGB37_520_12V_110RPM = 3; // Magnetic ring generates 44 pulses per revolution, combined with a gear reduction ratio of 90
+	const int MOTOR_PWM_DUTY_REG = 0x20; 	// Sets motor PWM duty (-127 ~ 127)
+	const int MOTOR1_ENCODER_REG = 0x30; 	// Motor encoder (Encoder-byte0 + Motor, Encoder-byte1 * 256 + Motor,Encoder-byte2 * 65536 + Motor, Encoder-byte3 * 16777216 )	
+	const int MOTOR2_ENCODER_REG = 0x34;
+
+	const int MOTOR_SPEED = 0x40; 		// motor speed (127 ~ 127), Motor encoder increments every 20 ms
+
+	const int MOTOR1_MODE_REG = 0X50;	
+	const int MOTOR2_MODE_REG = 0X60;
+	const int MOTOR3_MODE_REG = 0X70;
+	const int MOTOR4_MODE_REG = 0X80;
+	
+	const int VIN_CURRENT_FLOAT_REG = 0X90;
+	const int VIN_CURRENT_X100_REG = 0xC0;
+
+/* Variables */
+int readstat = 0;
 
 /* Initialize GPIO */
 Init = gpioInitialise();
@@ -59,36 +64,33 @@ else
 	/* Problems opening I2C port*/
 	printf("Open I2C port failed. Quitting i2c_ret Error code:  %d\n", i2c_ret);
 }
-std::cout << "before writing" << std::endl;
 
-/* Set motor type */
-int writestat = i2cWriteByteData(i2c_ret, I2C_ADDR, MOTOR_TYPE_REG, MOTOR_TYPE_TT); 
-printf("write return: %d\n",writestat);
-usleep(100000);  // 0.1 s
+///* Set motor type */
+//int writestat = i2cWriteByteData(i2c_ret, I2C_ADDR, MOTOR_TYPE_REG, 3); 
+//printf("Set motor type return: %d\n",writestat);
+//usleep(1000000);  // 0.1 s
 
-/* Set motor polarity i.e. direction of rotation */
-writestat = i2cWriteByteData(i2c_ret, I2C_ADDR, MOTOR_ENCODER_POLARITY_REG, 0x01);
-printf("write return: %d\n",writestat);
-usleep(100000);
+///* Set motor polarity i.e. direction of rotation */
+//writestat = i2cWriteByteData(i2c_ret, I2C_ADDR, MOTOR_ENCODER_POLARITY_REG, 0);
+//printf("Set motor polarity return: %d\n",writestat);
+//usleep(1000000);
 
 int x = 0;
-int mv = 0; // Voltage in millivolts
-int mv_arr[2]; // Voltage in millivolts
+int mv = -1; // Voltage in millivolts
+//int mv_arr[2]; // Voltage in millivolts
+//unsigned char enc[16]; // encoder array
 int enc[4]; 
 
-int motor_speed_1[4] = {50, 50, 50, 50}; 
-int motor_speed_2[4] = {-50, -50, -50, -50}; 
-int motor_speed_3[4] = {5, 5, 5, 5}; 
-int motor_speed_4[4] = {-2, -2, -2, -2}; 
-int motor_speed_5[4] = {0, 0, 0, 0}; 
-
-std::cout << "before loop" << std::endl;
+unsigned char motor_speed_1[4] = {75, 75, 75, 75}; 
+unsigned char motor_speed_3[4] = {25, 25, 25, 25}; 
+unsigned char motor_speed_5[4] = {0, 0, 0, 0}; 
 
 while (x<1000) {
 	// Read voltage
-	mv = i2cReadWordData(i2c_ret, I2C_ADDR, ADC_BAT_REG);
-	float v = ((float) mv ) / 1000;
-	printf("Voltage: %f V \n", v);
+	printf("Read current");
+	mv = i2cReadByteData(i2c_ret, I2C_ADDR, VIN_CURRENT_X100_REG);
+//	float v = ((float) mv ) / 1000;
+	printf("Current: %d A \n", mv);
 
 	//mv_arr[0] = i2cReadByteData(i2c_ret, I2C_ADDR, ADC_BAT_REG);
 	//mv_arr[1] = i2cReadByteData(i2c_ret, I2C_ADDR, ADC_BAT_REG+1);
@@ -96,21 +98,47 @@ while (x<1000) {
 	//printf("Voltage2: %f mV \n", v_test); jetson 
 
 	// Read motor encoder value
-	enc[0] = i2cReadByteData(i2c_ret, I2C_ADDR, MOTOR_ENCODER_TOTAL_REG);
-	enc[1] = i2cReadByteData(i2c_ret, I2C_ADDR, MOTOR_ENCODER_TOTAL_REG+1);
-	enc[2] = i2cReadByteData(i2c_ret, I2C_ADDR, MOTOR_ENCODER_TOTAL_REG+2);
-	enc[3] = i2cReadByteData(i2c_ret, I2C_ADDR, MOTOR_ENCODER_TOTAL_REG+3);
+	enc[0] = i2cReadByteData(i2c_ret, I2C_ADDR, MOTOR1_ENCODER_REG );
+	printf("Encoder 1: (%d) \n", enc[0]);
+//	enc[1] = i2cReadByteData(i2c_ret, I2C_ADDR, MOTOR_ENCODER_TOTAL_REG+1 );
+//	printf("Encoder 2: (%d) \n", enc[1]);
+//	enc[2] = i2cReadByteData(i2c_ret, I2C_ADDR, MOTOR_ENCODER_TOTAL_REG+2 );
+//	printf("Encoder 3: (%d) \n", enc[2]);
+//	enc[3] = i2cReadByteData(i2c_ret, I2C_ADDR, MOTOR_ENCODER_TOTAL_REG+3 );
+//	printf("Encoder 4: (%d) \n", enc[3]);
 
-	printf("Encoder: (%d, %d, %d, %d) \n", enc[0], enc[1], enc[2], enc[3]);
+//	printf("Encoder: (%d, %d, %d, %d) \n", enc[0], enc[1], enc[2], enc[3]);
 
-	// Write motor speed value
-	
-	writestat = i2cWriteByteData(i2c_ret, I2C_ADDR, MOTOR_FIXED_SPEED_REG, motor_speed_3[0]);
-	writestat = i2cWriteByteData(i2c_ret, I2C_ADDR, MOTOR_FIXED_SPEED_REG+1, motor_speed_3[1]);
-	writestat = i2cWriteByteData(i2c_ret, I2C_ADDR, MOTOR_FIXED_SPEED_REG+2, motor_speed_3[2]);
-	writestat = i2cWriteByteData(i2c_ret, I2C_ADDR, MOTOR_FIXED_SPEED_REG+3, motor_speed_3[3]);
 
-	usleep(100000);
+//	readstat = i2cReadArrayData(i2c_ret, I2C_ADDR, MOTOR_ENCODER_TOTAL_REG, enc, 16);
+//	if (readstat < 0){
+//		printf("Read from motor encoder unsuccessful!\n");	
+//	}
+
+//	printf("Encoder: (%d, %d, %d, %d) \n", enc[0], enc[1], enc[2], enc[3]);
+
+//	// Write motor speed value
+//	writestat = i2cWriteByteData(i2c_ret, I2C_ADDR, MOTOR_FIXED_SPEED_REG, 16);
+//	if (writestat < 0){
+//		printf("Write to motor driver unsuccessful!\n");	
+//	}	
+//	writestat = i2cWriteByteData(i2c_ret, I2C_ADDR, MOTOR_FIXED_SPEED_REG+1, 16);
+//	if (writestat < 0){
+//		printf("Write to motor driver unsuccessful!\n");	
+//	}	
+//	writestat = i2cWriteByteData(i2c_ret, I2C_ADDR, MOTOR_FIXED_SPEED_REG+2, 16);
+//	if (writestat < 0){
+//		printf("Write to motor driver unsuccessful!\n");	
+//	}	
+
+//	writestat = i2cWriteArrayData(i2c_ret, I2C_ADDR, MOTOR_FIXED_SPEED_REG, motor_speed_3, 4);
+//	if (writestat < 0){
+//		printf("Write to motor driver unsuccessful!\n");	
+//	}
+
+//	usleep(100000); // 0.1 s
+//	usleep(700000); // 0.7 s
+	usleep(1000000); // 1 s
 	x++;
   }
 
